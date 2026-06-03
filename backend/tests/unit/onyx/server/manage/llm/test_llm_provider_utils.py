@@ -217,6 +217,16 @@ class TestInferVisionSupport:
         """Test Bifrost GPT-4o models are recognized as vision-capable."""
         assert infer_vision_support("openai/gpt-4o") is True
 
+    def test_cx_gpt_models_have_vision(self) -> None:
+        """Test selected cx GPT models are recognized as vision-capable."""
+        assert infer_vision_support("cx/gpt-5") is True
+        assert infer_vision_support("cx/gpt-5.4-mini") is True
+        assert infer_vision_support("cx/gpt-5.5") is True
+
+    def test_cx_codex_no_vision(self) -> None:
+        """Test unsupported cx Codex models are not inferred as vision-capable."""
+        assert infer_vision_support("cx/gpt-5.3-codex") is False
+
     def test_mistral_no_vision(self) -> None:
         """Test Mistral doesn't have vision (not in known list)."""
         assert infer_vision_support("mistral.mistral-large") is False

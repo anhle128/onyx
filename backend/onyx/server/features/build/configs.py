@@ -6,6 +6,7 @@ from pathlib import Path
 class SandboxBackend(str, Enum):
     KUBERNETES = "kubernetes"
     DOCKER = "docker"
+    LOCAL = "local"
 
 
 SANDBOX_BACKEND = SandboxBackend(os.environ.get("SANDBOX_BACKEND", "kubernetes"))

@@ -718,7 +718,7 @@ def get_sandbox_manager() -> SandboxManager:
 
                     _sandbox_manager_instance = KubernetesSandboxManager()
                     logger.info("Using KubernetesSandboxManager for sandbox operations")
-                elif SANDBOX_BACKEND == SandboxBackend.DOCKER:
+                elif SANDBOX_BACKEND in (SandboxBackend.DOCKER, SandboxBackend.LOCAL):
                     from onyx.server.features.build.sandbox.docker.docker_sandbox_manager import (
                         DockerSandboxManager,
                     )

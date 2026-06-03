@@ -1102,9 +1102,8 @@ else
     if [ "$INCLUDE_CRAFT" = true ]; then
         # Set ENABLE_CRAFT=true for runtime configuration (handles commented and uncommented lines)
         sed -i.bak 's/^#* *ENABLE_CRAFT=.*/ENABLE_CRAFT=true/' "$ENV_FILE" 2>/dev/null || true
-        # Ensure SANDBOX_BACKEND=docker is written explicitly (docker-compose
-        # defaults to it already, but a literal entry in .env makes the
-        # selection visible/auditable to operators).
+        # Ensure SANDBOX_BACKEND=docker is written explicitly so the Craft
+        # compose overlay uses the Docker sandbox backend visibly/auditably.
         if grep -q "^#* *SANDBOX_BACKEND=" "$ENV_FILE"; then
             sed -i.bak 's/^#* *SANDBOX_BACKEND=.*/SANDBOX_BACKEND=docker/' "$ENV_FILE"
         else

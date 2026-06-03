@@ -70,6 +70,16 @@ BIFROST_VISION_MODEL_FAMILIES = frozenset(
     }
 )
 
+# Exact OpenAI-compatible model IDs that support image input. Keep these exact
+# to avoid marking unsupported variants like cx/gpt-5.3-codex as vision-capable.
+OPENAI_COMPATIBLE_EXACT_VISION_MODELS = frozenset(
+    {
+        "cx/gpt-5",
+        "cx/gpt-5.4-mini",
+        "cx/gpt-5.5",
+    }
+)
+
 
 def is_valid_bedrock_model(
     model_id: str,
@@ -101,6 +111,9 @@ def infer_vision_support(model_id: str) -> bool:
     """
     model_id_lower = model_id.lower()
     if any(vision_model in model_id_lower for vision_model in BEDROCK_VISION_MODELS):
+        return True
+
+    if model_id_lower in OPENAI_COMPATIBLE_EXACT_VISION_MODELS:
         return True
 
     normalized_model_id = model_id_lower.replace(".", "/")
