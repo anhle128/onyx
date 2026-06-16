@@ -157,6 +157,27 @@ def _resolve_api_key(
     return api_key
 
 
+def _lm_studio_supports_reasoning(reasoning_capability: Any) -> bool:
+    """Normalize LM Studio's evolving reasoning capability metadata."""
+    if isinstance(reasoning_capability, bool):
+        return reasoning_capability
+
+    if isinstance(reasoning_capability, dict):
+        allowed_options = reasoning_capability.get("allowed_options")
+        if isinstance(allowed_options, list):
+            return "on" in allowed_options
+
+        default = reasoning_capability.get("default")
+        if isinstance(default, str):
+            return default.lower() in {"on", "true", "enabled"}
+        if isinstance(default, bool):
+            return default
+
+        return bool(reasoning_capability)
+
+    return False
+
+
 def _sync_fetched_models(
     db_session: Session,
     provider_name: str,
@@ -1443,7 +1464,9 @@ def get_lm_studio_available_models(
                 display_name=display_name,
                 max_input_tokens=max_context_length,
                 supports_image_input=capabilities.get("vision", False),
-                supports_reasoning=capabilities.get("reasoning", False)
+                supports_reasoning=_lm_studio_supports_reasoning(
+                    capabilities.get("reasoning")
+                )
                 or is_reasoning_model(model_key, display_name),
             )
         )

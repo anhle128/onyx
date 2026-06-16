@@ -5,9 +5,8 @@ from __future__ import annotations
 import logging
 import threading
 from datetime import datetime
+from datetime import timedelta
 from typing import Any
-from typing import Optional
-from typing import Union
 
 from langfuse import Langfuse
 from langfuse._client.span import LangfuseObservationWrapper
@@ -23,7 +22,7 @@ from onyx.tracing.framework.traces import Trace
 logger = logging.getLogger(__name__)
 
 
-def _timestamp_from_maybe_iso(timestamp: Optional[str]) -> Optional[datetime]:
+def _timestamp_from_maybe_iso(timestamp: str | None) -> datetime | None:
     """Convert ISO timestamp string to datetime."""
     if timestamp is None:
         return None
@@ -43,10 +42,10 @@ class LangfuseTracingProcessor(TracingProcessor):
 
     def __init__(
         self,
-        client: Optional[Langfuse] = None,
+        client: Langfuse | None = None,
         enable_masking: bool = True,
     ) -> None:
-        self._client: Optional[Langfuse] = client
+        self._client: Langfuse | None = client
         self._enable_masking = enable_masking
         self._lock = threading.Lock()  # Protects all dict access
         self._spans: dict[str, LangfuseObservationWrapper] = {}
@@ -84,18 +83,24 @@ class LangfuseTracingProcessor(TracingProcessor):
             logger.warning("Failed to mask data: %s", e)
             return data
 
-    def _calculate_cost(self, data: GenerationSpanData) -> Optional[float]:
+    def _calculate_cost(self, data: GenerationSpanData) -> float | None:
         """Calculate LLM cost for this generation span."""
         try:
             from onyx.llm.cost import calculate_llm_cost_cents
 
             usage = data.usage or {}
-            prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens") or 0
-            completion_tokens = (
-                usage.get("completion_tokens") or usage.get("output_tokens") or 0
-            )
+            prompt_tokens = usage.get("prompt_tokens")
+            if prompt_tokens is None:
+                prompt_tokens = usage.get("input_tokens")
+            completion_tokens = usage.get("completion_tokens")
+            if completion_tokens is None:
+                completion_tokens = usage.get("output_tokens")
 
-            if data.model and prompt_tokens and completion_tokens:
+            if (
+                data.model
+                and prompt_tokens is not None
+                and completion_tokens is not None
+            ):
                 cost_cents = calculate_llm_cost_cents(
                     model_name=data.model,
                     prompt_tokens=int(prompt_tokens),
@@ -269,13 +274,14 @@ class LangfuseTracingProcessor(TracingProcessor):
             with self._lock:
                 langfuse_span = self._spans.pop(span.span_id, None)
                 self._langfuse_span_ids.pop(span.span_id, None)  # Clean up ID mapping
+                trace_metadata = self._trace_metadata.get(span.trace_id)
 
             if not langfuse_span:
                 return
 
             data = span.span_data
-            input_data: Optional[Any] = None
-            output_data: Optional[Any] = None
+            input_data: Any | None = None
+            output_data: Any | None = None
 
             if isinstance(data, GenerationSpanData):
                 input_data = data.input
@@ -292,11 +298,14 @@ class LangfuseTracingProcessor(TracingProcessor):
                 if cost is not None:
                     update_kwargs["cost_details"] = {"total": cost}
                 if data.reasoning:
-                    update_kwargs["metadata"] = {"reasoning": data.reasoning}
+                    update_kwargs["metadata"] = {
+                        **(trace_metadata or {}),
+                        "reasoning": data.reasoning,
+                    }
                 if data.time_to_first_action_seconds is not None:
-                    update_kwargs["completion_start_time"] = _timestamp_from_maybe_iso(
-                        span.started_at
-                    )
+                    completion_start_time = self._get_completion_start_time(span, data)
+                    if completion_start_time is not None:
+                        update_kwargs["completion_start_time"] = completion_start_time
 
                 langfuse_span.update(**update_kwargs)
 
@@ -335,18 +344,20 @@ class LangfuseTracingProcessor(TracingProcessor):
 
     def _get_generation_name(self, data: GenerationSpanData) -> str:
         """Get a descriptive name for a generation span."""
+        if isinstance(data.model_config, dict):
+            flow = data.model_config.get("flow")
+            if isinstance(flow, str) and flow.strip():
+                return flow
         if data.model:
             return f"Generation with {data.model}"
         return "Generation"
 
-    def _get_model_parameters(
-        self, data: GenerationSpanData
-    ) -> Optional[dict[str, Union[str, int, bool, None]]]:
+    def _get_model_parameters(self, data: GenerationSpanData) -> dict[str, Any] | None:
         """Extract model parameters from generation span data."""
         if not isinstance(data.model_config, dict):
             return None
 
-        params: dict[str, Union[str, int, bool, None]] = {}
+        params: dict[str, Any] = {}
         for key in [
             "temperature",
             "max_tokens",
@@ -358,7 +369,7 @@ class LangfuseTracingProcessor(TracingProcessor):
                 params[key] = data.model_config[key]
         return params if params else None
 
-    def _get_usage_details(self, data: GenerationSpanData) -> Optional[dict[str, int]]:
+    def _get_usage_details(self, data: GenerationSpanData) -> dict[str, int] | None:
         """Extract usage details from generation span data."""
         usage = data.usage or {}
         details: dict[str, int] = {}
@@ -373,7 +384,7 @@ class LangfuseTracingProcessor(TracingProcessor):
 
         if "total_tokens" in usage:
             details["total"] = int(usage["total_tokens"])
-        elif details.get("input") and details.get("output"):
+        elif "input" in details and "output" in details:
             details["total"] = details["input"] + details["output"]
 
         # Cache-related tokens
@@ -385,6 +396,21 @@ class LangfuseTracingProcessor(TracingProcessor):
             )
 
         return details if details else None
+
+    def _get_completion_start_time(
+        self,
+        span: Span[SpanData],
+        data: GenerationSpanData,
+    ) -> datetime | None:
+        """Return the wall-clock time when the generation first produced output."""
+        if data.time_to_first_action_seconds is None:
+            return None
+
+        span_start_time = _timestamp_from_maybe_iso(span.started_at)
+        if span_start_time is None:
+            return None
+
+        return span_start_time + timedelta(seconds=data.time_to_first_action_seconds)
 
     def force_flush(self) -> None:
         """Forces an immediate flush of all queued spans/traces."""

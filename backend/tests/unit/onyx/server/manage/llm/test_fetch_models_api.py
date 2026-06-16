@@ -444,7 +444,13 @@ class TestGetLMStudioAvailableModels:
                     "type": "llm",
                     "display_name": "Qwen 2.5 VL 7B",
                     "max_context_length": 32768,
-                    "capabilities": {"vision": True},
+                    "capabilities": {
+                        "vision": True,
+                        "reasoning": {
+                            "allowed_options": ["off", "on"],
+                            "default": "on",
+                        },
+                    },
                 },
                 {
                     "key": "text-embedding-nomic-embed-text-v1.5",
@@ -506,6 +512,26 @@ class TestGetLMStudioAvailableModels:
 
             assert qwen.supports_image_input is True
             assert llama.supports_image_input is False
+
+    def test_handles_structured_reasoning_capability(
+        self, mock_lm_studio_response: dict
+    ) -> None:
+        """Test that structured LM Studio reasoning metadata is normalized."""
+        from onyx.server.manage.llm.api import get_lm_studio_available_models
+
+        mock_session = MagicMock()
+
+        with patch("onyx.server.manage.llm.api.httpx") as mock_httpx:
+            mock_response = MagicMock()
+            mock_response.json.return_value = mock_lm_studio_response
+            mock_response.raise_for_status = MagicMock()
+            mock_httpx.get.return_value = mock_response
+
+            request = LMStudioModelsRequest(api_base="http://localhost:1234")
+            results = get_lm_studio_available_models(request, MagicMock(), mock_session)
+
+            qwen = next(r for r in results if "Qwen" in r.display_name)
+            assert qwen.supports_reasoning is True
 
     def test_infers_reasoning_from_model_name(self) -> None:
         """Test that reasoning is inferred from model name when not in capabilities."""

@@ -381,6 +381,10 @@ export default function useChatController({
     }: OnSubmitProps) => {
       const isMultiModel =
         !regenerationRequest && (selectedModels?.length ?? 0) >= 2;
+      const selectedSingleModel =
+        !isMultiModel && selectedModels?.length === 1
+          ? selectedModels[0]
+          : undefined;
       const projectId = params(SEARCH_PARAM_NAMES.PROJECT_ID);
       {
         const params = new URLSearchParams(searchParams?.toString() || "");
@@ -522,7 +526,15 @@ export default function useChatController({
       // message with it. If the user switches models and then starts a new
       // chat session, it is unexpected for that model to be used when they
       // return to this session the next day.
-      let finalLLM = modelOverride || llmManager.currentLlm;
+      let finalLLM =
+        modelOverride ||
+        (selectedSingleModel
+          ? {
+              name: selectedSingleModel.name,
+              provider: selectedSingleModel.provider,
+              modelName: selectedSingleModel.modelName,
+            }
+          : llmManager.currentLlm);
       updateLlmOverrideForChatSession(
         currChatSessionId,
         structureValue(
@@ -922,10 +934,14 @@ export default function useChatController({
           ),
           modelProvider: isMultiModel
             ? undefined
-            : modelOverride?.name || llmManager.currentLlm.name || undefined,
+            : modelOverride?.name ||
+              selectedSingleModel?.name ||
+              llmManager.currentLlm.name ||
+              undefined,
           modelVersion: isMultiModel
             ? undefined
             : modelOverride?.modelName ||
+              selectedSingleModel?.modelName ||
               llmManager.currentLlm.modelName ||
               searchParams?.get(SEARCH_PARAM_NAMES.MODEL_VERSION) ||
               undefined,

@@ -309,9 +309,7 @@ export default function NRFPage({ isSidePanel = false }: NRFPageProps) {
 
       // If we already have messages (chat session started), always use chat mode
       // (matches AppPage behavior where existing sessions bypass classification)
-      const selectedModels = multiModel.isMultiModelActive
-        ? multiModel.selectedModels
-        : undefined;
+      const selectedModels = multiModel.selectedModels;
 
       if (hasMessages) {
         onSubmit({

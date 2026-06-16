@@ -560,9 +560,7 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
         deepResearch:
           deepResearchEnabledForCurrentWorkflow &&
           !multiModel.isMultiModelActive,
-        selectedModels: multiModel.isMultiModelActive
-          ? multiModel.selectedModels
-          : undefined,
+        selectedModels: multiModel.selectedModels,
       });
       if (showOnboarding || !onboardingDismissed) {
         finishOnboarding();
@@ -616,9 +614,7 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
           deepResearch:
             deepResearchEnabledForCurrentWorkflow &&
             !multiModel.isMultiModelActive,
-          selectedModels: multiModel.isMultiModelActive
-            ? multiModel.selectedModels
-            : undefined,
+          selectedModels: multiModel.selectedModels,
         });
         if (showOnboarding || !onboardingDismissed) {
           finishOnboarding();
